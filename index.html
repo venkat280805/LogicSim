@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LogicSim | Educational Digital Logic Simulator</title>
+    <title>LogicSim Pro | Advanced Digital Logic Simulator</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
@@ -15,55 +15,44 @@
         <aside class="sidebar">
             <div class="logo">
                 <span class="icon">⏚</span>
-                <h1>LogicSim <small>EDU</small></h1>
+                <h1>LogicSim <small>PRO</small></h1>
             </div>
             <nav class="nav-menu">
-                <!-- Combinational Circuits -->
                 <details open class="nav-section">
                     <summary class="nav-category">Combinational</summary>
                     <div class="nav-group">
                         <button class="nav-item active" data-mode="gates">Logic Gates</button>
-                        
                         <details class="nav-subsection">
-                            <summary class="nav-item-parent" id="adder-parent">Adder</summary>
+                            <summary class="nav-item-parent" id="adder-parent">Adders</summary>
                             <div class="nav-group sub-group">
                                 <button class="nav-item sub-item" data-mode="half-adder">Half Adder</button>
                                 <button class="nav-item sub-item" data-mode="full-adder">Full Adder</button>
                             </div>
                         </details>
-
                         <button class="nav-item" data-mode="mux">Multiplexer</button>
                         <button class="nav-item" data-mode="decoder">Decoder</button>
                     </div>
                 </details>
 
-                <!-- Sequential Circuits -->
                 <details open class="nav-section">
                     <summary class="nav-category">Sequential</summary>
                     <div class="nav-group">
-                        <button class="nav-item" data-mode="d-flip-flop">Flip-Flop</button>
-                        <button class="nav-item" data-mode="counter">Counter</button>
-                        <button class="nav-item" data-mode="register">
-                            Register <span class="nav-badge">Stores data</span>
-                        </button>
+                        <button class="nav-item" data-mode="d-flip-flop">D Flip-Flop</button>
+                        <button class="nav-item" data-mode="counter">2-Bit Counter</button>
+                        <button class="nav-item" data-mode="register">4-Bit Register</button>
                     </div>
                 </details>
 
-                <!-- Testing (DFT) -->
                 <details open class="nav-section">
-                    <summary class="nav-category">Testing (DFT)</summary>
+                    <summary class="nav-category">Advanced / DFT</summary>
                     <div class="nav-group">
-                        <button class="nav-item" data-mode="scan-chain">
-                            Scan Chain <span class="nav-badge">Shifts data</span>
-                        </button>
-                        <button class="nav-item" data-mode="mbist">
-                            MBIST <span class="nav-badge">Tests memory</span>
-                        </button>
+                        <button class="nav-item" data-mode="scan-chain">Scan Chain</button>
+                        <button class="nav-item" data-mode="mbist">MBIST Engine</button>
                     </div>
                 </details>
             </nav>
             <div class="sidebar-footer">
-                <p>Digital Electronics v3.7</p>
+                <p>LogicSim Engine v4.0</p>
             </div>
         </aside>
 
@@ -74,22 +63,42 @@
                     <h2 id="current-mode-title">Logic Gates</h2>
                     <div class="breadcrumb" id="mode-breadcrumb">Combinational &gt; Gates</div>
                 </div>
-                <div class="mode-badge">Educational Mode</div>
+                <div class="controls-group">
+                    <div id="clock-controls" style="display: none; align-items: center; gap: 10px; margin-right: 15px; border-right: 1px solid var(--border-soft); padding-right: 15px;">
+                        <span style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: var(--text-secondary);">Auto Clock</span>
+                        <label class="switch">
+                            <input type="checkbox" id="auto-clock-toggle">
+                            <span class="slider"></span>
+                        </label>
+                        <select id="clock-speed" style="background: var(--bg-panel); border: 1px solid var(--border-soft); border-radius: 8px; font-size: 0.7rem; padding: 2px 5px; color: var(--text-primary);">
+                            <option value="1000">1 Hz</option>
+                            <option value="500">2 Hz</option>
+                            <option value="200">5 Hz</option>
+                        </select>
+                    </div>
+                    <button id="theme-toggle" class="icon-btn" title="Toggle Theme">
+                        <span id="theme-icon">🌙</span>
+                    </button>
+                </div>
             </header>
 
             <div class="dashboard-grid">
                 <!-- Simulation Viewport -->
-                <section class="simulation-viewport panel">
+                <section class="panel simulation-viewport">
+                    <div class="panel-header">
+                        <h3>Circuit Simulation</h3>
+                        <span class="panel-icon">⏚</span>
+                    </div>
                     <div id="simulation-container">
-                        <!-- Content will be injected here -->
+                        <!-- Content injected by app.js -->
                     </div>
                 </section>
 
-                <!-- Logic Analysis Panel -->
-                <section class="steps-panel panel">
+                <!-- Signal Analysis Panel -->
+                <section class="panel steps-panel">
                     <div class="panel-header">
-                        <span class="panel-icon">⚙</span>
                         <h3>Signal Analysis</h3>
+                        <span class="panel-icon">⚙</span>
                     </div>
                     <div id="steps-content" class="panel-body">
                         <!-- Dynamic steps -->
@@ -97,10 +106,10 @@
                 </section>
 
                 <!-- Truth Table Panel -->
-                <section class="truth-table-panel panel">
+                <section class="panel truth-table-panel">
                     <div class="panel-header">
-                        <span class="panel-icon">▤</span>
                         <h3>Truth Table</h3>
+                        <span class="panel-icon">▤</span>
                     </div>
                     <div class="table-container">
                         <table id="truth-table">
@@ -109,11 +118,11 @@
                     </div>
                 </section>
 
-                <!-- Conceptual Formula Panel -->
-                <footer class="explanation-panel panel">
-                    <div class="panel-header">
-                        <span class="panel-icon">ℹ</span>
+                <!-- Explanation Panel -->
+                <footer class="panel explanation-panel">
+                    <div class="panel-header" style="border:none; padding-bottom:0;">
                         <h3>Logic Concept</h3>
+                        <span class="panel-icon">ℹ</span>
                     </div>
                     <div id="explanation-content" class="panel-body">
                         <!-- Dynamic formulas -->

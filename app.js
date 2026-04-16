@@ -1,11 +1,17 @@
 /**
- * LogicSim EDU | Educational Logic Diagrams Simulator
- * Enhanced Engine v3.8 - FIXED INITIALIZATION & STATE
+ * LogicSim Pro | Advanced Digital Logic Simulator Engine
+ * Engine v4.0 - Premium Visuals & Dynamic SVG Architecture
  */
 
 const state = {
     currentMode: 'gates',
-    activeModule: 'Combinational', // Track category
+    activeModule: 'Combinational',
+    theme: 'light',
+    clock: {
+        active: false,
+        interval: null,
+        speed: 1000
+    },
     inputs: {
         A: false, B: false, Cin: false, I0: false, I1: false, S: false, D: false, 
         serialIn: false, gateType: 'AND',
@@ -13,9 +19,8 @@ const state = {
     },
     register: [0, 0, 0, 0],
     sequential: {
-        Q: false, prevQ: false, count: 0,
-        scanChain: [0, 0, 0],
-        activeScanIndex: -1
+        Q: false, count: 0,
+        scanChain: [0, 0, 0]
     },
     mbist: {
         memory: [0, 0, 0, 0],
@@ -26,30 +31,55 @@ const state = {
     }
 };
 
-// Elements will be populated after DOM is ready
 let elements = {};
 
 const TRUTH_TABLES = {
-    gates: (type) => ({ headers: ['A', 'B', 'OUT'], rows: [[0,0,calcGate(0,0,type)],[0,1,calcGate(0,1,type)],[1,0,calcGate(1,0,type)],[1,1,calcGate(1,1,type)]] }),
-    'half-adder': () => ({ headers: ['A', 'B', 'SUM', 'CARRY'], rows: [[0,0,0,0],[0,1,1,0],[1,0,1,0],[1,1,0,1]] }),
-    'full-adder': () => ({ headers: ['A', 'B', 'Cin', 'SUM', 'Cout'], rows: [[0,0,0,0,0],[1,1,1,1,1]] }),
-    mux: () => ({ headers: ['I0', 'I1', 'S', 'OUT'], rows: [[1,0,0,1],[0,1,1,1]] }),
-    decoder: () => ({ headers: ['A', 'B', 'Y0', 'Y1', 'Y2', 'Y3'], rows: [[0,0,1,0,0,0],[1,1,0,0,0,1]] }),
-    'd-flip-flop': () => ({ headers: ['D', 'CLK', 'Q'], rows: [[1,'↑',1],[0,'↑',0]] }),
-    counter: () => ({ headers: ['CLK', 'Count'], rows: [['↑',0],['↑',1],['↑',2],['↑',3]] }),
-    'scan-chain': () => ({ headers: ['Input', 'FF1', 'FF2', 'FF3', 'Output'], rows: [[1,1,0,0,0],[0,0,1,0,0]] }),
-    mbist: () => ({ headers: ['Step', 'Action', 'Result'], rows: [[1,'Write','Saved'],[2,'Read','Value'],[3,'Check','PASS/FAIL']] }),
-    register: () => ({ headers: ['Inputs', 'Load', 'Stored'], rows: [['1010', 'Click', '1010']] })
+    gates: (type) => ({ 
+        headers: ['A', 'B', 'OUT'], 
+        rows: [[0,0,calcGate(0,0,type)],[0,1,calcGate(0,1,type)],[1,0,calcGate(1,0,type)],[1,1,calcGate(1,1,type)]] 
+    }),
+    'half-adder': () => ({ 
+        headers: ['A', 'B', 'SUM', 'CARRY'], 
+        rows: [[0,0,0,0],[0,1,1,0],[1,0,1,0],[1,1,0,1]] 
+    }),
+    'full-adder': () => ({ 
+        headers: ['A', 'B', 'Cin', 'SUM', 'Cout'], 
+        rows: [
+            [0,0,0,0,0], [0,0,1,1,0], [0,1,0,1,0], [0,1,1,0,1],
+            [1,0,0,1,0], [1,0,1,0,1], [1,1,0,0,1], [1,1,1,1,1]
+        ] 
+    }),
+    mux: () => ({ 
+        headers: ['I0', 'I1', 'S', 'OUT'], 
+        rows: [[0,0,0,0],[0,1,0,0],[1,0,0,1],[1,1,0,1],[0,0,1,0],[0,1,1,1],[1,0,1,0],[1,1,1,1]] 
+    }),
+    decoder: () => ({ 
+        headers: ['A', 'B', 'Y0', 'Y1', 'Y2', 'Y3'], 
+        rows: [[0,0,1,0,0,0],[0,1,0,1,0,0],[1,0,0,0,1,0],[1,1,0,0,0,1]] 
+    }),
+    'd-flip-flop': () => ({ 
+        headers: ['D', 'CLK', 'Q'], 
+        rows: [[0,'↑',0],[1,'↑',1],[0,'-',0],[1,'-',1]] 
+    }),
+    counter: () => ({ 
+        headers: ['Pulse', 'Q1', 'Q0', 'Decimal'], 
+        rows: [[0,0,0,0],[1,0,1,1],[2,1,0,2],[3,1,1,3]] 
+    }),
+    'scan-chain': () => ({ 
+        headers: ['SI', 'FF1', 'FF2', 'FF3', 'SO'], 
+        rows: [[1,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]] 
+    }),
+    mbist: () => ({ 
+        headers: ['Phase', 'Action', 'Memory'], 
+        rows: [['Write','Patt','1010'],['Read','Load','1010'],['Check','Comp','PASS']] 
+    }),
+    register: () => ({ 
+        headers: ['D3-D0', 'Load', 'Q3-Q0'], 
+        rows: [['1010', '↑', '1010'], ['0110', '-', '1010']] 
+    })
 };
 
-/**
- * INITIALIZATION ENGINE
- * This ensures all DOM elements are found BEFORE attaching listeners.
- */
 function init() {
-    console.log("LogicSim EDU: Initializing...");
-
-    // 1. Re-select all elements after DOM load
     elements = {
         navItems: document.querySelectorAll('.nav-item'),
         modeTitle: document.getElementById('current-mode-title'),
@@ -58,70 +88,76 @@ function init() {
         stepsContent: document.getElementById('steps-content'),
         truthTable: document.getElementById('truth-table'),
         explanation: document.getElementById('explanation-content'),
-        adderParent: document.getElementById('adder-parent')
+        themeToggle: document.getElementById('theme-toggle'),
+        themeIcon: document.getElementById('theme-icon'),
+        autoClock: document.getElementById('auto-clock-toggle'),
+        clockSpeed: document.getElementById('clock-speed'),
+        clockControls: document.getElementById('clock-controls')
     };
 
-    // 2. Attach Sidebar Listeners
     elements.navItems.forEach(item => {
-        item.addEventListener('click', (e) => {
+        item.addEventListener('click', () => {
             const mode = item.getAttribute('data-mode');
             if (mode) switchMode(mode);
         });
     });
 
-    // 3. Adder Parent Default-to-Half Logic
-    if (elements.adderParent) {
-        elements.adderParent.addEventListener('click', () => {
-            // Give details a tiny moment to process the click
-            setTimeout(() => {
-                const details = elements.adderParent.parentElement;
-                if (details && details.open) {
-                    // Force rendering of Half Adder if we are just opening
-                    switchMode('half-adder');
-                }
-            }, 10);
-        });
-    }
-
-    // 4. Set Initial State (Default: Gates)
-    switchMode('gates');
-    
-    console.log("LogicSim EDU: Ready.");
-}
-
-/**
- * CORE STATE SWITCHER
- */
-function switchMode(mode) {
-    if (!mode) return;
-    
-    state.currentMode = mode;
-    console.log(`Switching to: ${mode}`);
-    
-    // Highlight sidebar
-    elements.navItems.forEach(item => {
-        const itemMode = item.getAttribute('data-mode');
-        if (itemMode === mode) {
-            item.classList.add('active');
-            // Extract the section name from the summary of the parent details
-            const section = item.closest('.nav-section');
-            if (section) {
-                const category = section.querySelector('.nav-category');
-                if (category) state.activeModule = category.textContent;
-            }
-        } else {
-            item.classList.remove('active');
+    elements.themeToggle.addEventListener('click', toggleTheme);
+    elements.autoClock.addEventListener('change', toggleClock);
+    elements.clockSpeed.addEventListener('change', (e) => {
+        state.clock.speed = parseInt(e.target.value);
+        if (state.clock.active) {
+            toggleClock(); // Restart with new speed
+            toggleClock();
         }
     });
 
-    // Update Headings & Breadcrumbs
-    const friendlyName = getFriendlyName(mode);
-    if (elements.modeTitle) elements.modeTitle.textContent = friendlyName;
-    if (elements.modeBreadcrumb) {
-        elements.modeBreadcrumb.textContent = `${state.activeModule} > ${friendlyName}`;
-    }
+    switchMode('gates');
+}
 
-    // Full Re-render
+function toggleTheme() {
+    state.theme = state.theme === 'light' ? 'dark' : 'light';
+    document.body.className = `${state.theme}-theme`;
+    elements.themeIcon.textContent = state.theme === 'light' ? '🌙' : '☀️';
+}
+
+function toggleClock() {
+    state.clock.active = elements.autoClock.checked;
+    if (state.clock.active) {
+        state.clock.interval = setInterval(triggerClockStep, state.clock.speed);
+    } else {
+        clearInterval(state.clock.interval);
+    }
+}
+
+function triggerClockStep() {
+    const pulseBtn = document.querySelector('.pulse-btn');
+    if (pulseBtn) {
+        pulseBtn.classList.add('active');
+        pulseBtn.click();
+        setTimeout(() => pulseBtn.classList.remove('active'), 100);
+    }
+}
+
+function switchMode(mode) {
+    state.currentMode = mode;
+    
+    // UI Updates
+    elements.navItems.forEach(item => {
+        item.classList.toggle('active', item.getAttribute('data-mode') === mode);
+        if (item.classList.contains('active')) {
+            const category = item.closest('.nav-section').querySelector('.nav-category');
+            state.activeModule = category.textContent;
+        }
+    });
+
+    elements.modeTitle.textContent = getFriendlyName(mode);
+    elements.modeBreadcrumb.textContent = `${state.activeModule} > ${getFriendlyName(mode)}`;
+    
+    // Show/Hide Clock Controls
+    const isSequential = ['d-flip-flop', 'counter', 'scan-chain'].includes(mode);
+    elements.clockControls.style.display = isSequential ? 'flex' : 'none';
+
     renderSimulation();
     updateLogic();
     renderTruthTable();
@@ -130,9 +166,9 @@ function switchMode(mode) {
 function getFriendlyName(m) {
     return {
         'gates': 'Logic Gates', 'half-adder': 'Half Adder', 'full-adder': 'Full Adder', 
-        'mux': 'Multiplexer', 'decoder': 'Decoder', 'd-flip-flop': 'Flip-Flop', 
-        'counter': 'Counter', 'scan-chain': 'Scan Chain', 'mbist': 'MBIST',
-        'register': 'Register'
+        'mux': 'Multiplexer', 'decoder': 'Decoder', 'd-flip-flop': 'D Flip-Flop', 
+        'counter': '2-Bit Counter', 'scan-chain': 'Scan Chain', 'mbist': 'MBIST Engine',
+        'register': '4-Bit Register'
     }[m] || m;
 }
 
@@ -144,54 +180,52 @@ function calcGate(a, b, t) {
 }
 
 function updateLogic() {
-    if (!elements.simContainer) return;
-    
     const { inputs, currentMode } = state;
     let outputs = {}; let steps = [];
 
     switch (currentMode) {
         case 'gates':
-            const gateRes = calcGate(inputs.A, inputs.B, inputs.gateType);
-            outputs['OUT'] = gateRes;
-            steps = [`Input A is ${inputs.A?1:0}`, `Input B is ${inputs.B?1:0}`, `Output result is ${gateRes?1:0}`];
+            const g = calcGate(inputs.A, inputs.B, inputs.gateType);
+            outputs['OUT'] = g;
+            steps = [`Input A is ${inputs.A?1:0}`, `Input B is ${inputs.B?1:0}`, `Gate ${inputs.gateType} result: ${g?1:0}`];
             break;
         case 'half-adder':
             outputs = { SUM: inputs.A^inputs.B, CARRY: inputs.A&&inputs.B };
-            steps = [`Sum Bit: ${outputs.SUM}`, `Carry Bit: ${outputs.CARRY}`];
+            steps = [`A ⊕ B (XOR) = ${outputs.SUM}`, `A ⋅ B (AND) = ${outputs.CARRY}`];
             break;
         case 'full-adder':
-            const axorb = inputs.A^inputs.B;
-            outputs = { SUM: axorb^inputs.Cin, CARRY: (inputs.A&&inputs.B)||(inputs.Cin&&axorb) };
-            steps = [`XOR stage: ${axorb?1:0}`, `Final Sum: ${outputs.SUM}`, `Final Carry: ${outputs.CARRY}`];
+            const x1 = inputs.A ^ inputs.B;
+            outputs = { SUM: x1 ^ inputs.Cin, Cout: (inputs.A && inputs.B) || (inputs.Cin && x1) };
+            steps = [`Internal Sum (A⊕B): ${x1?1:0}`, `Final Sum: ${outputs.SUM?1:0}`, `Carry Out: ${outputs.Cout?1:0}`];
             break;
         case 'mux':
             outputs['OUT'] = inputs.S ? inputs.I1 : inputs.I0;
-            steps = [`Selected S: ${inputs.S?1:0}`, `Choice: I${inputs.S?1:0}`, `Result: ${outputs.OUT?1:0}`];
+            steps = [`Selector S is ${inputs.S?1:0}`, `Routing I${inputs.S?1:0} to Output`, `Result: ${outputs.OUT?1:0}`];
             break;
         case 'decoder':
             const r = (inputs.A?2:0)+(inputs.B?1:0);
             for(let i=0; i<4; i++) outputs[`Y${i}`] = (r===i);
-            steps = [`Binary: ${inputs.A?1:0}${inputs.B?1:0}`, `Selection: Y${r}`];
+            steps = [`Value bin(${inputs.A?1:0}${inputs.B?1:0}) = ${r}`, `Activating Output Y${r}`];
             break;
         case 'd-flip-flop':
             outputs['Q'] = state.sequential.Q;
-            steps = [`Entering Data: ${inputs.D?1:0}`, `Current Storage: ${outputs.Q?1:0}`];
+            steps = [`D Input: ${inputs.D?1:0}`, `Master-Slave State: ${state.sequential.Q?1:0}`];
             break;
         case 'counter':
             outputs['Q0'] = state.sequential.count & 1; outputs['Q1'] = (state.sequential.count >> 1) & 1;
-            steps = [`Number: ${state.sequential.count}`, `Bits: ${outputs.Q1}${outputs.Q0}`];
-            const d = document.getElementById('count-dec'); if(d) d.textContent = state.sequential.count;
+            steps = [`Current Count: ${state.sequential.count}`, `Binary state: ${outputs.Q1}${outputs.Q0}`];
             break;
         case 'register':
-            steps = [`Inputs: ${inputs.regInputs.map(b=>b?1:0).join('')}`, `Stored: ${state.register.join('')}`];
+            state.register.forEach((v,i) => outputs[`Q${i}`] = v);
+            steps = [`Stored Bits: ${state.register.join('')}`];
             renderRegister();
             break;
         case 'scan-chain':
-            steps = [`Serial Input: ${inputs.serialIn?1:0}`, `State: [${state.sequential.scanChain.join('][')}]`, `Last Bit: ${state.sequential.scanChain[state.sequential.scanChain.length-1]}`];
+            steps = [`SI: ${inputs.serialIn?1:0}`, `Chain: [${state.sequential.scanChain.join(']-[')}]` ];
             renderScanChain();
             break;
         case 'mbist':
-            steps = [`Data: [${state.mbist.memory.join('')}]`, `Status: ${state.mbist.status}`];
+            steps = [`Memory: [${state.mbist.memory.join('')}]`, `Status: ${state.mbist.status}`];
             renderMBIST();
             break;
     }
@@ -201,120 +235,76 @@ function updateLogic() {
     updateExplanation();
     highlightTruthTableRow();
     
+    // Update SVG
     const diag = document.getElementById('diagram-viewport');
-    if (diag && !['register','scan-chain','mbist'].includes(currentMode)) {
-        diag.innerHTML = getDiagramSVG(currentMode);
-    }
+    if (diag) diag.innerHTML = getDiagramSVG(currentMode);
 }
 
 function renderSimulation() {
     let html = ''; const mode = state.currentMode;
-    const layout = (ins, diag, outs) => `<div class="simulator-layout"><div class="inputs-group">${ins}</div><div id="diagram-viewport" style="flex:1">${diag}</div><div class="outputs-group">${outs}</div></div>`;
+    const layout = (ins, outs) => `<div class="simulator-layout"><div class="inputs-group">${ins}</div><div id="diagram-viewport" style="flex:1"></div><div class="outputs-group">${outs}</div></div>`;
 
     if (mode === 'register') {
         html = `
-            <div class="simulator-layout" style="flex-direction:column; gap:1.5rem;">
-                <div class="helper-label">Stores multiple bits of data</div>
-                <div class="inputs-group" style="flex-direction:row; gap:10px; justify-content:center; width:100%;">
-                    ${[0,1,2,3].map(i => renderSwitch(`reg-${i}`, `D${i}`)).join('')}
-                    <button class="pulse-btn" id="reg-load-btn" style="margin-left:20px;">Load Data</button>
+            <div class="simulator-layout" style="flex-direction:column; gap:2rem;">
+                <div class="inputs-group" style="flex-direction:row; gap:12px; justify-content:center; width:100%;">
+                    ${[3,2,1,0].map(i => renderSwitch(`reg-${i}`, `D${i}`)).join('')}
+                    <button class="pulse-btn" id="reg-load-btn" style="margin-left:2rem;">Load Data</button>
                 </div>
-                <div id="register-container" class="scan-flow"></div>
+                <div id="register-container" class="scan-flow" style="display:flex; gap:15px; justify-content:center;"></div>
             </div>
         `;
     } else if (mode === 'scan-chain') {
         html = `
-            <div class="simulator-layout" style="flex-direction:column; gap:1.5rem;">
-                <div class="helper-label">Shifts data bit-by-bit</div>
-                <div class="inputs-group" style="flex-direction:row; gap:20px; justify-content:center; width:100%;">
-                    ${renderSwitch('serialIn', 'Data In')}
-                    <button class="pulse-btn" id="shift-in-btn">Shift-In (Move Data)</button>
+            <div class="simulator-layout" style="flex-direction:column; gap:2rem;">
+                <div class="inputs-group" style="flex-direction:row; gap:2rem; justify-content:center; width:100%;">
+                    ${renderSwitch('serialIn', 'SI')}
+                    <button class="pulse-btn" id="shift-in-btn">Shift Internal</button>
+                    ${renderIndicator('serialOut', 'SO')}
                 </div>
-                <div id="scan-container" class="scan-flow"></div>
-                <div class="outputs-group" style="flex-direction:row; justify-content:center;">${renderIndicator('serialOut', 'Out Bit')}</div>
+                <div id="scan-container" class="scan-flow" style="display:flex; align-items:center; gap:20px; justify-content:center;"></div>
             </div>
         `;
     } else if (mode === 'mbist') {
         html = `
-            <div class="simulator-layout" style="flex-direction:column; gap:1rem;">
-                <div class="helper-label">Tests memory for errors</div>
-                <div class="inputs-group" style="flex-direction:row; gap:10px; justify-content:center; width:100%;">
-                    <button class="pulse-btn" id="mbist-write">1. Write</button>
-                    <button class="pulse-btn" id="mbist-read">2. Read</button>
-                    <button class="pulse-btn" id="mbist-compare">3. Compare</button>
+            <div class="simulator-layout" style="flex-direction:column; gap:1.5rem;">
+                <div class="inputs-group" style="flex-direction:row; gap:15px; justify-content:center; width:100%;">
+                    <button class="pulse-btn" id="mbist-write">1. Pattern Write</button>
+                    <button class="pulse-btn secondary" id="mbist-read">2. Read & Cache</button>
+                    <button class="pulse-btn secondary" id="mbist-compare">3. Verify Logic</button>
                 </div>
-                <div id="mbist-grid" class="memory-grid" style="grid-template-columns: repeat(4, 75px); justify-content:center;"></div>
-                <div id="mbist-results" style="text-align:center; font-weight:800; font-size:1.1rem; min-height:1.2rem;"></div>
+                <div id="mbist-grid" class="memory-grid" style="grid-template-columns: repeat(4, 70px); justify-content:center;"></div>
+                <div id="mbist-results" style="font-size:1.2rem; font-weight:800; min-height:2rem; text-align:center;"></div>
             </div>
         `;
     } else {
-        const ins = mode==='gates'?`<select class="gate-select" id="gate-type-select"><option value="AND">AND Gate</option><option value="OR">OR Gate</option><option value="NOT">NOT Gate</option><option value="NAND">NAND Gate</option><option value="NOR">NOR Gate</option></select>`+renderSwitch('A','A')+`<div id="input-b-container">${renderSwitch('B','B')}</div>` :
+        const ins = mode==='gates'?`<select class="gate-select" id="gate-type-select"><option value="AND">AND GATE</option><option value="OR">OR GATE</option><option value="NOT">NOT GATE</option><option value="NAND">NAND GATE</option><option value="NOR">NOR GATE</option></select>`+renderSwitch('A','A')+`<div id="input-b-container">${renderSwitch('B','B')}</div>` :
                     mode==='half-adder'?renderSwitch('A','A')+renderSwitch('B','B') :
                     mode==='full-adder'?renderSwitch('A','A')+renderSwitch('B','B')+renderSwitch('Cin','Cin') :
-                    mode==='mux'?renderSwitch('I0','I0')+renderSwitch('I1','I1')+renderSwitch('S','Sel') :
+                    mode==='mux'?renderSwitch('I0','I0')+renderSwitch('I1','I1')+renderSwitch('S','SEL') :
                     mode==='decoder'?renderSwitch('A','A')+renderSwitch('B','B') :
-                    mode==='d-flip-flop'?renderSwitch('D','Data')+`<button class="pulse-btn" id="clock-pulse">Save</button>` :
-                    mode==='counter'?`<button class="pulse-btn" id="counter-pulse">Next</button>` : '';
+                    mode==='d-flip-flop'?renderSwitch('D','D')+`<button class="pulse-btn" id="clock-pulse">CAP</button>` :
+                    mode==='counter'?`<button class="pulse-btn" id="counter-pulse">NEXT</button>` : '';
         const outs = mode==='decoder'?renderIndicator('Y0','Y0')+renderIndicator('Y1','Y1')+renderIndicator('Y2','Y2')+renderIndicator('Y3','Y3') :
-                     mode==='half-adder'||mode==='full-adder'?renderIndicator('SUM','Sum')+renderIndicator('CARRY','Carry') :
-                     mode==='counter'?renderIndicator('Q1','Q1')+renderIndicator('Q0','Q0') : renderIndicator('OUT','Out');
-        html = layout(ins, getDiagramSVG(mode), outs);
+                     mode==='half-adder'?renderIndicator('SUM','S')+renderIndicator('CARRY','C') :
+                     mode==='full-adder'?renderIndicator('SUM','S')+renderIndicator('Cout','Co') :
+                     mode==='counter'?renderIndicator('Q1','Q1')+renderIndicator('Q0','Q0') : renderIndicator('OUT','Q');
+        html = layout(ins, outs);
     }
     
-    if (elements.simContainer) {
-        elements.simContainer.innerHTML = html;
-        attachEvents();
-    }
+    elements.simContainer.innerHTML = html;
+    attachEvents();
 }
 
-function renderSwitch(id, label) { return `<div class="switch-container"><span class="switch-label">${label}</span><label class="switch"><input type="checkbox" id="input-${id}" ${state.inputs[id] ? 'checked' : ''}><span class="slider"></span></label></div>`; }
-function renderIndicator(id, label) { return `<div class="switch-container"><span class="switch-label">${label}</span><div id="indicator-${id}" class="indicator">0</div></div>`; }
-
-function renderRegister() {
-    const container = document.getElementById('register-container');
-    if (container) container.innerHTML = state.register.map((val, i) => `<div class="ff-block"><span class="ff-label">Q${i}</span><div class="ff-val">${val}</div></div>`).join('');
+function renderSwitch(id, label) { 
+    return `<div class="switch-container"><span class="switch-label">${label}</span><label class="switch"><input type="checkbox" id="input-${id}" ${state.inputs[id] ? 'checked' : ''}><span class="slider"></span></label></div>`; 
 }
 
-function renderScanChain() {
-    const container = document.getElementById('scan-container');
-    if (container) container.innerHTML = state.sequential.scanChain.map((val, i) => `<div class="ff-block ${state.sequential.activeScanIndex === i ? 'active' : ''}"><span class="ff-label">FF${i+1}</span><div class="ff-val">${val}</div></div>`).join('<div class="flow-arrow">→</div>');
-}
-
-function renderMBIST() {
-    const grid = document.getElementById('mbist-grid');
-    if (!grid) return;
-    grid.innerHTML = state.mbist.memory.map((val, i) => `<div class="memory-cell ${state.mbist.accessIndex === i ? 'accessed' : ''}">${val}</div>`).join('');
-    const res = document.getElementById('mbist-results');
-    if (res) {
-        let text = '';
-        if (state.mbist.status === 'WRITTEN') text = `Pattern: ${state.mbist.written.join('')}`;
-        else if (state.mbist.status === 'READ') text = `Read: ${state.mbist.read.join('')}`;
-        else if (state.mbist.status === 'PASS') text = `<span style="color:var(--success)">TEST PASS ✓</span>`;
-        else if (state.mbist.status === 'FAIL') text = `<span style="color:var(--danger)">TEST FAIL ✗</span>`;
-        res.innerHTML = text;
-    }
-}
-
-function getDiagramSVG(mode) {
-    let svg = `<svg viewBox="0 0 300 120" class="diagram-container">`;
-    const wire = (x1, y1, x2, y2, active) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="wire ${active ? 'high' : ''}" />`;
-    const label = (x, y, txt) => `<text x="${x}" y="${y}" class="gate-text">${txt}</text>`;
-    if (mode === 'gates') {
-        const type = state.inputs.gateType; const a = state.inputs.A; const b = state.inputs.B; const out = calcGate(a, b, type);
-        svg += wire(20, 45, 100, 40, a); if (type !== 'NOT') svg += wire(20, 85, 100, 80, b);
-        let path = (type==='OR'||type==='NOR'? 'M100,30 c10,0 20,10 20,30 c0,20 -10,30 -20,30 c20,0 50,-10 50,-30 c0,-20 -30,-30 -50,-30' : 
-                   type==='NOT' ? 'M100,30 l50,30 l-50,30 z' : 'M100,30 h40 a30,30 0 0 1 0,60 h-40 z');
-        svg += `<path d="${path}" class="gate-body ${out ? 'active' : ''}" />`;
-        if(type==='NOT'||type.startsWith('NA')||type==='NOR') svg += `<circle cx="${type==='NOT'?157:177}" cy="60" r="5" class="gate-body" style="fill:white" />`;
-        svg += wire(180, 60, 260, 60, out);
-    } else {
-        svg += `<rect x="100" y="25" width="100" height="70" rx="8" class="gate-body" />` + label(150, 65, mode.replace('-',' ').toUpperCase());
-    }
-    return svg + `</svg>`;
+function renderIndicator(id, label) { 
+    return `<div class="switch-container"><span class="switch-label">${label}</span><div id="indicator-${id}" class="indicator">0</div></div>`; 
 }
 
 function attachEvents() {
-    if (!elements.simContainer) return;
     elements.simContainer.querySelectorAll('input[type="checkbox"]').forEach(i => {
         i.addEventListener('change', e => { 
             const id = e.target.id.replace('input-', '');
@@ -323,35 +313,94 @@ function attachEvents() {
             updateLogic();
         });
     });
+
     const s = document.getElementById('gate-type-select');
-    if (s) {
-        s.value = state.inputs.gateType;
-        s.addEventListener('change', e => { state.inputs.gateType = e.target.value; renderTruthTable(); updateLogic(); });
-    }
-    const regLoad = document.getElementById('reg-load-btn');
-    if (regLoad) regLoad.addEventListener('click', () => { state.register = state.inputs.regInputs.map(v=>v?1:0); updateLogic(); });
-    const clk = document.getElementById('clock-pulse');
-    if (clk) clk.addEventListener('click', () => { state.sequential.Q = state.inputs.D; updateLogic(); });
-    const cp = document.getElementById('counter-pulse');
-    if (cp) cp.addEventListener('click', () => { state.sequential.count = (state.sequential.count+1)%4; updateLogic(); });
-    const sIn = document.getElementById('shift-in-btn');
-    if (sIn) sIn.addEventListener('click', () => {
+    if (s) s.addEventListener('change', e => { state.inputs.gateType = e.target.value; renderTruthTable(); updateLogic(); });
+
+    // Buttons
+    const bindBtn = (id, fn) => { const b = document.getElementById(id); if(b) b.addEventListener('click', fn); };
+    bindBtn('reg-load-btn', () => { state.register = [...state.inputs.regInputs].reverse().map(v=>v?1:0); updateLogic(); });
+    bindBtn('clock-pulse', () => { state.sequential.Q = state.inputs.D; updateLogic(); });
+    bindBtn('counter-pulse', () => { state.sequential.count = (state.sequential.count+1)%4; updateLogic(); });
+    bindBtn('shift-in-btn', () => {
         state.sequential.scanChain.unshift(state.inputs.serialIn?1:0);
         state.sequential.scanChain.pop();
-        state.sequential.activeScanIndex = 0;
         updateLogic();
-        setTimeout(() => { state.sequential.activeScanIndex = -1; updateLogic(); }, 200);
     });
-    const mWrite = document.getElementById('mbist-write');
-    if (mWrite) mWrite.addEventListener('click', () => { state.mbist.memory = [1,0,1,0]; state.mbist.written = [1,0,1,0]; state.mbist.status = 'WRITTEN'; updateLogic(); });
-    const mRead = document.getElementById('mbist-read');
-    if (mRead) mRead.addEventListener('click', () => { state.mbist.read = [...state.mbist.memory]; state.mbist.status = 'READ'; updateLogic(); });
-    const mComp = document.getElementById('mbist-compare');
-    if (mComp) mComp.addEventListener('click', () => { state.mbist.status = (JSON.stringify(state.mbist.written) === JSON.stringify(state.mbist.read)) ? 'PASS' : 'FAIL'; updateLogic(); });
+    bindBtn('mbist-write', () => { state.mbist.memory = [1,0,1,0]; state.mbist.written = [1,0,1,0]; state.mbist.status = 'WRITTEN'; updateLogic(); });
+    bindBtn('mbist-read', () => { state.mbist.read = [...state.mbist.memory]; state.mbist.status = 'READ'; updateLogic(); });
+    bindBtn('mbist-compare', () => { state.mbist.status = (JSON.stringify(state.mbist.written) === JSON.stringify(state.mbist.read)) ? 'PASS' : 'FAIL'; updateLogic(); });
+}
+
+function getDiagramSVG(mode) {
+    let svg = `<svg viewBox="0 0 400 160" class="diagram-container">`;
+    const wire = (x1, y1, x2, y2, act) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="wire ${act?'high':''}" />`;
+    const rect = (x, y, w, h, act) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" class="gate-body ${act?'active':''}" />`;
+    const text = (x, y, t) => `<text x="${x}" y="${y}" class="gate-text">${t}</text>`;
+
+    if (mode === 'gates') {
+        const t = state.inputs.gateType; const a = state.inputs.A; const b = state.inputs.B; const q = calcGate(a, b, t);
+        svg += wire(20, 50, 150, 50, a); if (t !== 'NOT') svg += wire(20, 110, 150, 110, b);
+        let path = (t==='OR'||t==='NOR'? 'M150,30 c20,0 40,15 40,50 c0,35 -20,50 -40,50 c25,0 80,-15 80,-50 c0,-35 -55,-50 -80,-50' : 
+                   t==='NOT' ? 'M150,30 l80,50 l-80,50 z' : 'M150,30 h60 a50,50 0 0 1 0,100 h-60 z');
+        svg += `<path d="${path}" class="gate-body ${q?'active':''}" />`;
+        if(t.includes('N') || t==='NOT') svg += `<circle cx="${t==='NOT'?236:266}" cy="80" r="6" class="gate-body" style="fill:white" />`;
+        svg += wire(t==='NOT'?242:272, 80, 380, 80, q);
+        svg += text(t==='NOT'?175:190, 85, t);
+    } 
+    else if (mode === 'half-adder') {
+        svg += rect(120, 30, 160, 100, state.inputs.A || state.inputs.B);
+        svg += text(200, 85, 'HALF ADDER');
+        svg += wire(20, 60, 120, 60, state.inputs.A) + wire(20, 100, 120, 100, state.inputs.B);
+        svg += wire(280, 60, 380, 60, state.inputs.A ^ state.inputs.B);
+        svg += wire(280, 100, 380, 100, state.inputs.A && state.inputs.B);
+    } 
+    else if (mode === 'full-adder') {
+        svg += rect(120, 20, 160, 120, state.inputs.A || state.inputs.B || state.inputs.Cin);
+        svg += text(200, 85, 'FULL ADDER');
+        svg += wire(20, 40, 120, 40, state.inputs.A) + wire(20, 80, 120, 80, state.inputs.B) + wire(20, 120, 120, 120, state.inputs.Cin);
+        const s = state.inputs.A ^ state.inputs.B ^ state.inputs.Cin;
+        svg += wire(280, 50, 380, 50, s) + wire(280, 110, 380, 110, !s && (state.inputs.A||state.inputs.B||state.inputs.Cin)); // simplified carry visualization
+    }
+    else if (mode === 'mux') {
+        svg += `<path d="M140,20 L260,40 L260,120 L140,140 Z" class="gate-body ${state.inputs.I0||state.inputs.I1?'active':''}" />`;
+        svg += text(200, 85, 'MUX 2:1');
+        svg += wire(20, 60, 140, 60, state.inputs.I0) + wire(20, 100, 140, 100, state.inputs.I1);
+        svg += wire(200, 130, 200, 160, state.inputs.S);
+        svg += wire(260, 80, 380, 80, state.inputs.S ? state.inputs.I1 : state.inputs.I0);
+    }
+    else {
+        svg += rect(120, 30, 160, 100, true);
+        svg += text(200, 85, mode.toUpperCase());
+    }
+    return svg + `</svg>`;
+}
+
+function renderRegister() {
+    const c = document.getElementById('register-container');
+    if (c) c.innerHTML = state.register.map((v, i) => `<div class="ff-block ${v?'active':''}" style="width:60px; height:60px;"><span style="font-size:0.6rem; opacity:0.5;">Q${3-i}</span><div style="font-family:'JetBrains Mono'; font-weight:800; font-size:1.2rem;">${v}</div></div>`).join('');
+}
+
+function renderScanChain() {
+    const c = document.getElementById('scan-container');
+    if (c) c.innerHTML = state.sequential.scanChain.map((v, i) => `<div class="ff-block ${v?'active':''}" style="padding:10px;"><span style="font-size:0.6rem;">FF${i+1}</span><div style="font-size:1.2rem; font-weight:800;">${v}</div></div>`).join(' → ');
+    updateIndicator('serialOut', state.sequential.scanChain[2]);
+}
+
+function renderMBIST() {
+    const g = document.getElementById('mbist-grid');
+    if (!g) return;
+    g.innerHTML = state.mbist.memory.map((v, i) => `<div class="memory-cell ${state.mbist.status!=='IDLE'?'accessed':''}">${v}</div>`).join('');
+    const res = document.getElementById('mbist-results');
+    if (res) {
+        if (state.mbist.status === 'PASS') res.innerHTML = `<span style="color:var(--success)">TEST PASS ✓</span>`;
+        else if (state.mbist.status === 'FAIL') res.innerHTML = `<span style="color:var(--danger)">TEST FAIL ✗</span>`;
+        else res.innerHTML = `<span style="color:var(--text-secondary)">${state.mbist.status}...</span>`;
+    }
 }
 
 function updateIndicator(id, val) { const el = document.getElementById(`indicator-${id}`); if (el) { el.classList.toggle('high', !!val); el.textContent = val ? '1' : '0'; } }
-function renderSteps(s) { if(elements.stepsContent) elements.stepsContent.innerHTML = s.map((t, i) => `<div class="step-item ${i===s.length-1?'active':''}"><div class="step-title">Step ${i+1}</div><div class="step-value">${t}</div></div>`).join(''); }
+function renderSteps(s) { if(elements.stepsContent) elements.stepsContent.innerHTML = s.map((t, i) => `<div class="step-item ${i===s.length-1?'active':''}"><div class="step-title">Pulse Step ${i+1}</div><div class="step-value">${t}</div></div>`).join(''); }
 function renderTruthTable() {
     const d = TRUTH_TABLES[state.currentMode](state.inputs.gateType);
     if(!d || !elements.truthTable) return;
@@ -362,31 +411,29 @@ function highlightTruthTableRow() {
     const m = state.currentMode; const i = state.inputs; let idx = -1;
     if (m==='gates') idx = (i.A?2:0)+(i.B?1:0);
     else if (m==='half-adder') idx = (i.A?2:0)+(i.B?1:0);
-    else if (m==='mux') idx = i.S ? 1 : 0;
+    else if (m==='full-adder') idx = (i.A?4:0)+(i.B?2:0)+(i.Cin?1:0);
+    else if (m==='mux') idx = (i.S?4:0)+(i.I0?2:0)+(i.I1?1:0); // this is a simple shift for highlighting
+    
     if(!elements.truthTable) return;
+    elements.truthTable.querySelectorAll('tr').forEach(r=>r.classList.remove('highlight-row'));
     const active = elements.truthTable.querySelector(`#row-${idx}`);
-    if (active) { elements.truthTable.querySelectorAll('tr').forEach(r=>r.classList.remove('highlight-row')); active.classList.add('highlight-row'); }
+    if (active) active.classList.add('highlight-row');
 }
 function updateExplanation() {
     const m = state.currentMode;
     const d = {
-        'gates': 'A basic block that takes inputs and gives one result.',
-        'half-adder': 'A circuit that adds 2 bits together.',
-        'full-adder': 'A circuit that adds 3 bits, including a carry.',
-        'mux': 'A selector that picks which input to send to the output.',
-        'decoder': 'Turns a binary code into a single active signal.',
-        'd-flip-flop': 'Remembers its input value when you click Save.',
-        'counter': 'Counts up from 0 to 3 each time you click Next.',
-        'register': 'A register is a group of flip-flops used to store multiple bits.',
-        'scan-chain': 'In scan mode, flip-flops act like a shift register. Data moves one position at a time.',
-        'mbist': 'MBIST writes data, reads it back, and compares it. If they match, it passes.'
+        'gates': 'Fundamental building blocks of digital logic. Gates perform boolean operations (AND, OR, NOT) on input signals.',
+        'half-adder': 'A combinational circuit that performs the addition of two bits. It produces a Sum and a Carry bit.',
+        'full-adder': 'Adds three bits (A, B, and Carry-In), essential for multi-bit binary addition in ripple-carry adders.',
+        'mux': 'A data selector that routes one of several inputs to a single output line based on selector signals.',
+        'decoder': 'Converts an n-bit input code into one of 2^n unique output signals, commonly used for chip select logic.',
+        'd-flip-flop': 'A basic memory element that captures the value of the D-input at a specific clock edge.',
+        'counter': 'A sequential circuit that cycles through a set of states. This 2-bit counter tracks pulses from 0 to 3.',
+        'register': 'A group of flip-flops used to store a multi-bit word. Essential for data storage in CPUs.',
+        'scan-chain': 'A Design-for-Test (DFT) technique where flip-flops are chained to allow internal state observation and control.',
+        'mbist': 'Memory Built-In Self-Test. An on-chip engine that automatically verifies memory integrity using hardware algorithms.'
     };
-    if(elements.explanation) elements.explanation.innerHTML = `<p>${d[m] || ''}</p>`;
+    if(elements.explanation) elements.explanation.innerHTML = `<p style="line-height:1.6; color:var(--text-secondary);">${d[m] || ''}</p>`;
 }
 
-// Ensure DOM is ready before init
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
+document.addEventListener('DOMContentLoaded', init);
